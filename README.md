@@ -98,7 +98,9 @@ Release\img2spec.exe
    ./build/img2spec.app/Contents/MacOS/img2spec
    ```
 
-2. **Open Image**: Click "Open Image..." and select a PNG or JPG file
+2. **Open Image**:
+   - **Method 1**: Click "Open Image..." and select a PNG or JPG file
+   - **Method 2**: Drag and drop an image file onto the application window
    - Color images are automatically converted to grayscale
    - Alpha channel is ignored
    - Preview appears in the window

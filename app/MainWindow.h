@@ -30,10 +30,15 @@ private slots:
     void onRender();
     void onCancel();
 
+protected:
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
+
 private:
     void setupUI();
     void updatePreview();
     void setUIEnabled(bool enabled);
+    void loadImageFile(const QString& path);
 
     // UI Components
     QLabel* imagePreview_;

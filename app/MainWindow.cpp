@@ -8,6 +8,10 @@
 #include <QMessageBox>
 #include <QImage>
 #include <QScrollArea>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
 #include <iostream>
 
 namespace img2spec {
@@ -19,6 +23,10 @@ MainWindow::MainWindow(QWidget* parent)
     setupUI();
     setWindowTitle("img2spec - Image to Spectrogram Audio Generator");
     resize(1000, 800);
+
+    // Enable drag and drop
+    setAcceptDrops(true);
+    std::cout << "Drag and drop enabled" << std::endl;
 }
 
 MainWindow::~MainWindow() {}
@@ -177,30 +185,40 @@ void MainWindow::setupUI() {
     setCentralWidget(centralWidget);
 }
 
+void MainWindow::loadImageFile(const QString& path) {
+    std::cout << "Loading image: " << path.toStdString() << std::endl;
+
+    if (!imageLoader_->load(path.toStdString())) {
+        QMessageBox::critical(this, "Error", "Failed to load image.\nPath: " + path);
+        return;
+    }
+
+    currentImagePath_ = path;
+    updatePreview();
+    renderButton_->setEnabled(true);
+
+    std::cout << "Image loaded successfully: " << imageLoader_->getWidth() << "x"
+              << imageLoader_->getHeight() << std::endl;
+}
+
 void MainWindow::onOpenImage() {
+    std::cout << "Opening file dialog..." << std::endl;
+
     QString fileName = QFileDialog::getOpenFileName(
         this,
         "Open Image",
         "",
-        "Image Files (*.png *.jpg *.jpeg);;All Files (*)"
+        "Image Files (*.png *.jpg *.jpeg);;All Files (*)",
+        nullptr,
+        QFileDialog::DontUseNativeDialog  // Force Qt dialog for consistency
     );
 
     if (fileName.isEmpty()) {
+        std::cout << "No file selected" << std::endl;
         return;
     }
 
-    std::cout << "Opening image: " << fileName.toStdString() << std::endl;
-
-    if (!imageLoader_->load(fileName.toStdString())) {
-        QMessageBox::critical(this, "Error", "Failed to load image.");
-        return;
-    }
-
-    currentImagePath_ = fileName;
-    updatePreview();
-    renderButton_->setEnabled(true);
-
-    std::cout << "Image loaded successfully." << std::endl;
+    loadImageFile(fileName);
 }
 
 void MainWindow::updatePreview() {
@@ -420,6 +438,45 @@ void MainWindow::setUIEnabled(bool enabled) {
     openButton_->setEnabled(enabled);
     renderButton_->setEnabled(enabled && imageLoader_->isLoaded());
     cancelButton_->setEnabled(!enabled);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
+    std::cout << "Drag enter event detected" << std::endl;
+
+    if (event->mimeData()->hasUrls()) {
+        // Check if any of the URLs is an image file
+        for (const QUrl& url : event->mimeData()->urls()) {
+            QString path = url.toLocalFile();
+            if (path.endsWith(".png", Qt::CaseInsensitive) ||
+                path.endsWith(".jpg", Qt::CaseInsensitive) ||
+                path.endsWith(".jpeg", Qt::CaseInsensitive)) {
+                event->acceptProposedAction();
+                std::cout << "Accepting drag: " << path.toStdString() << std::endl;
+                return;
+            }
+        }
+    }
+    event->ignore();
+}
+
+void MainWindow::dropEvent(QDropEvent* event) {
+    std::cout << "Drop event detected" << std::endl;
+
+    if (event->mimeData()->hasUrls()) {
+        for (const QUrl& url : event->mimeData()->urls()) {
+            QString path = url.toLocalFile();
+            std::cout << "Dropped file: " << path.toStdString() << std::endl;
+
+            if (path.endsWith(".png", Qt::CaseInsensitive) ||
+                path.endsWith(".jpg", Qt::CaseInsensitive) ||
+                path.endsWith(".jpeg", Qt::CaseInsensitive)) {
+                loadImageFile(path);
+                event->acceptProposedAction();
+                return; // Only load first valid image
+            }
+        }
+    }
+    event->ignore();
 }
 
 } // namespace img2spec
