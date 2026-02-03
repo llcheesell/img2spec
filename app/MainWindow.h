@@ -15,6 +15,7 @@
 #include <memory>
 
 #include "core/ImageLoader.h"
+#include "app/ImagePreviewWidget.h"
 
 namespace img2spec {
 
@@ -30,13 +31,20 @@ private slots:
     void onRender();
     void onCancel();
 
+protected:
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
+
 private:
     void setupUI();
     void updatePreview();
+    void updateFrequencyGuides();
+    void updateDurationEstimate();
     void setUIEnabled(bool enabled);
+    void loadImageFile(const QString& path);
 
     // UI Components
-    QLabel* imagePreview_;
+    ImagePreviewWidget* imagePreview_;
     QPushButton* openButton_;
     QPushButton* renderButton_;
     QPushButton* cancelButton_;
@@ -48,6 +56,8 @@ private:
     QComboBox* fftSizeCombo_;
     QComboBox* hopSizeCombo_;
     QComboBox* freqScaleCombo_;
+    QDoubleSpinBox* minFreqSpin_;
+    QDoubleSpinBox* maxFreqSpin_;
     QDoubleSpinBox* minDbSpin_;
     QDoubleSpinBox* gammaSpin_;
     QSpinBox* iterationsSpin_;
@@ -55,6 +65,8 @@ private:
     QDoubleSpinBox* outputGainSpin_;
     QCheckBox* limiterCheck_;
     QCheckBox* stereoCheck_;
+
+    QLabel* durationLabel_;
 
     // Data
     std::unique_ptr<ImageLoader> imageLoader_;

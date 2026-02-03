@@ -93,6 +93,8 @@ add_executable(img2spec
     app/main.cpp
     app/MainWindow.cpp
     app/MainWindow.h
+    app/ImagePreviewWidget.cpp
+    app/ImagePreviewWidget.h
 )
 
 # Workaround for AGL framework issue on macOS

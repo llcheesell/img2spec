@@ -19,7 +19,10 @@ Complete implementation of an image-to-audio converter that interprets images as
 - **SpectrogramBuilder** ([core/SpectrogramBuilder.cpp](core/SpectrogramBuilder.cpp))
   - Image → Magnitude spectrogram conversion
   - **Linear frequency mapping**: Direct pixel-to-bin mapping
-  - **Logarithmic frequency mapping**: Perceptual scale (20Hz-20kHz)
+  - **Logarithmic frequency mapping**: Perceptual scale with configurable range
+    - Configurable min/max frequency (default: 20Hz-20kHz)
+    - Proper handling of DC bin and out-of-range frequencies
+    - Bilinear interpolation for smooth frequency transitions
   - Gamma correction: `p' = pow(p, gamma)`
   - dB mapping: `mag_db = lerp(minDb, 0, p')`
   - Magnitude conversion: `mag = 10^(mag_db/20)`
@@ -56,19 +59,30 @@ Complete implementation of an image-to-audio converter that interprets images as
 
 ### ✅ GUI (Qt6)
 - **MainWindow** ([app/MainWindow.cpp](app/MainWindow.cpp))
-  - Image file dialog with preview
+  - Image file dialog and drag & drop support
+  - Enhanced image preview with frequency visualization
+  - Real-time audio duration estimation
   - Full parameter controls:
     - Sample rate selection
     - Bit depth selection
     - FFT size (1024/2048/4096)
     - Hop size (NFFT/2, NFFT/4, NFFT/8)
     - Frequency scale (Linear/Log)
+    - Min/Max frequency range (for log scale)
     - MinDB, Gamma, Iterations
     - Normalize target, Output gain
     - Safety limiter, Stereo option
-  - Progress bar with percentage
+  - Progress dialog with detailed rendering stages
   - Success/error dialogs
   - Detailed console logging
+
+- **ImagePreviewWidget** ([app/ImagePreviewWidget.cpp](app/ImagePreviewWidget.cpp))
+  - Custom widget for image display
+  - Automatic scaling to fit window
+  - Frequency guide overlay (logarithmic mode only):
+    - Visual markers for: 50Hz, 100Hz, 200Hz, 500Hz, 1kHz, 2kHz, 5kHz, 10kHz, 15kHz
+    - Yellow dashed lines with clear labels
+    - Helps users understand frequency mapping
 
 ### ✅ Build System (CMake)
 - Cross-platform: macOS / Windows
@@ -102,61 +116,88 @@ Complete implementation of an image-to-audio converter that interprets images as
 - Detailed logging for debugging
 - Error handling with exceptions
 - Qt signal/slot pattern
+- Custom widgets for specialized UI components
+- Event-driven architecture (drag & drop, parameter changes)
 
 ## Testing
 
 ### Manual Test Procedure
 1. Build application
 2. Create test image (gradient + patterns)
-3. Load image and verify preview
-4. Render with default parameters
-5. Verify WAV file plays without artifacts
-6. Test parameter variations:
-   - Linear vs Log frequency scale
-   - Different gamma values (0.5, 1.0, 2.0)
-   - Various iteration counts (16, 64, 256)
-   - MinDB range (-120 to -40)
+3. Load image via:
+   - File dialog ("Open Image...")
+   - Drag and drop onto window
+4. Verify image preview displays correctly
+5. Test frequency guides:
+   - Switch to "Logarithmic" scale
+   - Verify frequency markers appear on image
+   - Adjust Min/Max Freq and verify guides update
+6. Check duration estimation updates when changing:
+   - Sample rate
+   - FFT size
+   - Hop size
+7. Render with default parameters
+8. Verify progress dialog shows:
+   - Detailed status messages
+   - Griffin-Lim iteration count
+   - Smooth progress bar updates
+9. Verify WAV file plays without artifacts
+10. Test parameter variations:
+    - Linear vs Log frequency scale
+    - Different frequency ranges (e.g., 100-10kHz)
+    - Different gamma values (0.5, 1.0, 2.0)
+    - Various iteration counts (16, 64, 256)
+    - MinDB range (-120 to -40)
 
 ### Expected Results
 - Clean audio without clicks or pops
 - Frequency content matches image brightness
-- Linear: Even frequency distribution
-- Log: More bass content (perceptual)
+- Linear: Even frequency distribution across spectrum
+- Log: More bass content, perceptual frequency distribution
+- Frequency guides accurately show frequency positions in log mode
+- Duration estimation matches actual WAV file duration
 - Higher gamma: Brighter, more high-freq content
 - More iterations: Smoother, more natural sound
+- Progress dialog shows meaningful updates throughout rendering
 
 ## Known Limitations
 
 ### Current Implementation
-1. **Main Thread Rendering**: UI freezes during render (not critical for short images)
-2. **No Cancel**: Cancel button not functional
+1. **Main Thread Rendering**: UI responsive via QApplication::processEvents() but still blocks
+2. **No Cancel**: Cancel button in progress dialog not functional
 3. **Memory**: Large images (>4096x4096) may cause issues
 4. **Processing Time**: Scales with (image_width × iterations)
 
 ### Future Enhancements (if needed)
-1. Background thread rendering with QThread
-2. Cancel flag implementation
-3. Image size limit with warning
-4. Render time estimation
-5. Batch processing
-6. Real-time preview (spectrogram playback)
+1. Background thread rendering with QThread for true non-blocking UI
+2. Cancel flag implementation with atomic bool
+3. Image size limit with pre-render warning
+4. Batch processing for multiple images
+5. Real-time preview (short audio snippet playback)
+6. Preset saving/loading for parameter sets
 
 ## File Structure
 
 ```
 img2spec/
-├── CMakeLists.txt              # Build configuration
-├── README.md                   # User documentation
-├── IMPLEMENTATION_SUMMARY.md   # This file
+├── CMakeLists.txt                   # Build configuration
+├── README.md                        # User documentation
+├── IMPLEMENTATION_SUMMARY.md        # This file
+├── TROUBLESHOOTING.md               # Problem-solving guide
+├── docs/
+│   └── images/                      # Screenshots and documentation
+│       └── README.md                # Screenshot specifications
 ├── app/
-│   ├── main.cpp               # Entry point
-│   ├── MainWindow.h           # GUI declaration
-│   └── MainWindow.cpp         # GUI implementation + render pipeline
+│   ├── main.cpp                     # Entry point
+│   ├── MainWindow.h                 # GUI declaration
+│   ├── MainWindow.cpp               # GUI implementation + render pipeline
+│   ├── ImagePreviewWidget.h         # Custom preview widget declaration
+│   └── ImagePreviewWidget.cpp       # Frequency guide overlay implementation
 ├── core/
-│   ├── ImageLoader.{h,cpp}    # Image loading & grayscale
-│   ├── SpectrogramBuilder.{h,cpp}  # Image → |S| conversion
-│   ├── Stft.{h,cpp}           # STFT/ISTFT (Kiss FFT)
-│   ├── GriffinLim.{h,cpp}     # Phase reconstruction
+│   ├── ImageLoader.{h,cpp}          # Image loading & grayscale
+│   ├── SpectrogramBuilder.{h,cpp}   # Image → |S| conversion with freq mapping
+│   ├── Stft.{h,cpp}                 # STFT/ISTFT (Kiss FFT)
+│   ├── GriffinLim.{h,cpp}           # Phase reconstruction
 │   ├── Leveling.{h,cpp}       # Audio post-processing
 │   └── WavWriter.{h,cpp}      # WAV file export (libsndfile)
 └── build/                     # Build output (generated)
