@@ -13,7 +13,10 @@ enum class FrequencyScale {
 struct SpectrogramParams {
     int fftSize = 2048;
     int hopSize = 512;
+    int sampleRate = 44100;
     FrequencyScale freqScale = FrequencyScale::Linear;
+    double minFreqHz = 20.0;    // Minimum frequency in Hz
+    double maxFreqHz = 20000.0; // Maximum frequency in Hz
     double minDb = -80.0;
     double gamma = 1.0;
 };
@@ -40,7 +43,10 @@ private:
         int imageHeight,
         int frameIndex,
         int numBins,
-        FrequencyScale scale
+        FrequencyScale scale,
+        double minFreqHz,
+        double maxFreqHz,
+        int sampleRate
     );
 };
 

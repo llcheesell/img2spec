@@ -27,7 +27,10 @@ std::vector<float> SpectrogramBuilder::resampleColumn(
     int imageHeight,
     int frameIndex,
     int numBins,
-    FrequencyScale scale
+    FrequencyScale scale,
+    double minFreqHz,
+    double maxFreqHz,
+    int sampleRate
 ) {
     std::vector<float> column(numBins);
 
@@ -63,9 +66,9 @@ std::vector<float> SpectrogramBuilder::resampleColumn(
         // Use perceptual scale: more resolution in low frequencies
         // Map image Y to log frequency, then to bin index
 
-        // Define frequency range (skip DC for log scale)
-        const float minFreq = 20.0f; // Hz (lowest audible)
-        const float maxFreq = 20000.0f; // Hz (Nyquist approximation)
+        const float minFreq = static_cast<float>(minFreqHz);
+        const float maxFreq = static_cast<float>(maxFreqHz);
+        const float nyquist = sampleRate / 2.0f;
 
         for (int k = 0; k < numBins; ++k) {
             if (k == 0) {
@@ -76,24 +79,36 @@ std::vector<float> SpectrogramBuilder::resampleColumn(
             } else {
                 // Logarithmic mapping for k >= 1
                 // Frequency of bin k (linear)
-                const float binFreq = static_cast<float>(k) / (numBins - 1) * maxFreq;
+                const float binFreq = static_cast<float>(k) / (numBins - 1) * nyquist;
 
-                // Map frequency to log scale [0, 1]
-                const float logFreq = std::log(binFreq / minFreq) / std::log(maxFreq / minFreq);
-                const float logFreqClamped = std::max(0.0f, std::min(1.0f, logFreq));
+                // Clamp to specified frequency range
+                if (binFreq < minFreq) {
+                    // Below range: use bottom of image
+                    const float imageY = imageHeight - 1;
+                    const int y = std::min(static_cast<int>(imageY), imageHeight - 1);
+                    column[k] = imageData[y * imageWidth + frameIndex];
+                } else if (binFreq > maxFreq) {
+                    // Above range: use top of image
+                    const float imageY = 0;
+                    column[k] = imageData[static_cast<int>(imageY) * imageWidth + frameIndex];
+                } else {
+                    // Map frequency to log scale [0, 1]
+                    const float logFreq = std::log(binFreq / minFreq) / std::log(maxFreq / minFreq);
+                    const float logFreqClamped = std::max(0.0f, std::min(1.0f, logFreq));
 
-                // Map to image Y coordinate (0 = top = high freq, 1 = bottom = low freq)
-                const float imageY = (imageHeight - 1) * (1.0f - logFreqClamped);
+                    // Map to image Y coordinate (0 = top = high freq, 1 = bottom = low freq)
+                    const float imageY = (imageHeight - 1) * (1.0f - logFreqClamped);
 
-                // Bilinear interpolation
-                const int y0 = static_cast<int>(std::floor(imageY));
-                const int y1 = std::min(y0 + 1, imageHeight - 1);
-                const float fy = imageY - y0;
+                    // Bilinear interpolation
+                    const int y0 = static_cast<int>(std::floor(imageY));
+                    const int y1 = std::min(y0 + 1, imageHeight - 1);
+                    const float fy = imageY - y0;
 
-                const float v0 = imageData[y0 * imageWidth + frameIndex];
-                const float v1 = imageData[y1 * imageWidth + frameIndex];
+                    const float v0 = imageData[y0 * imageWidth + frameIndex];
+                    const float v1 = imageData[y1 * imageWidth + frameIndex];
 
-                column[k] = v0 * (1.0f - fy) + v1 * fy;
+                    column[k] = v0 * (1.0f - fy) + v1 * fy;
+                }
             }
         }
     }
@@ -121,7 +136,8 @@ std::vector<std::vector<float>> SpectrogramBuilder::buildMagnitudeSpectrogram(
     for (int t = 0; t < numFrames; ++t) {
         // Get column from image (resample to numBins)
         std::vector<float> pixelColumn = resampleColumn(
-            imageData, imageWidth, imageHeight, t, numBins, params.freqScale
+            imageData, imageWidth, imageHeight, t, numBins, params.freqScale,
+            params.minFreqHz, params.maxFreqHz, params.sampleRate
         );
 
         // Convert pixels to magnitudes

@@ -2,6 +2,17 @@
 
 Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses the Griffin-Lim algorithm for phase reconstruction and ISTFT for high-quality audio synthesis.
 
+## Screenshots
+
+![Main Window](docs/images/screenshot-main.png)
+*Main application window with image preview and parameter controls*
+
+![Frequency Guides](docs/images/screenshot-frequency-guides.png)
+*Logarithmic frequency scale with visual guides*
+
+![Progress Dialog](docs/images/screenshot-progress.png)
+*Real-time rendering progress with Griffin-Lim iterations*
+
 ## Features
 
 - **Cross-platform**: Windows and macOS support
@@ -13,10 +24,15 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
 - **DSP controls**:
   - FFT size: 1024, 2048, 4096
   - Hop size: NFFT/2, NFFT/4, NFFT/8
-  - Frequency scale: Linear, Logarithmic
+  - Frequency scale: Linear, Logarithmic (20Hz - 20kHz configurable)
   - Brightness mapping: minDb, gamma correction
   - Griffin-Lim iterations (16-256)
   - Normalize, Output Gain, Safety Limiter
+- **Enhanced UX**:
+  - Visual frequency guides on image preview (logarithmic mode)
+  - Real-time audio duration estimation
+  - Drag & drop support for images
+  - Detailed progress dialog during rendering
 
 ## Technology Stack
 
@@ -105,26 +121,46 @@ Release\img2spec.exe
    - Alpha channel is ignored
    - Preview appears in the window
 
-3. **Adjust Parameters**: Configure settings for your desired output
+3. **Review Audio Duration**:
+   - The estimated output duration is displayed below the parameters
+   - Calculated based on: `(Image Width × Hop Size) / Sample Rate`
+   - Adjust hop size and sample rate to control duration
+
+4. **Adjust Parameters**: Configure settings for your desired output
    - Start with defaults for first test
    - Recommended settings for good quality:
      - Sample Rate: 48000 Hz
      - Bit Depth: 24 bit (PCM)
      - FFT Size: 2048
      - Hop Size: NFFT/4
+     - Frequency Scale: Logarithmic
+     - Min Freq: 20 Hz, Max Freq: 20000 Hz
      - Griffin-Lim Iterations: 64
 
-4. **Render**: Click "Render & Export WAV..."
+5. **Frequency Guides** (Logarithmic mode only):
+   - Visual guides show frequency positions on the image
+   - Common frequencies marked: 50Hz, 100Hz, 200Hz, 500Hz, 1kHz, 2kHz, 5kHz, 10kHz, 15kHz
+   - Helps understand which parts of the image correspond to which frequencies
+
+6. **Render**: Click "Render & Export WAV..."
    - Choose save location for WAV file
-   - Progress bar shows rendering status
+   - Progress dialog shows detailed rendering status:
+     - Spectrogram building
+     - Griffin-Lim iterations (with count)
+     - Post-processing
+     - WAV file writing
    - Success dialog displays when complete
 
-5. **Listen**: Open the generated WAV file in any audio player or DAW
+7. **Listen**: Open the generated WAV file in any audio player or DAW
 
 ### Parameter Guide
 
 - **FFT Size**: Larger = better frequency resolution, longer processing
-- **Hop Size**: Smaller = smoother time resolution, longer audio
+- **Hop Size**: Smaller = smoother time resolution, longer audio duration
+- **Frequency Scale**:
+  - **Linear**: Direct pixel-to-bin mapping (uniform frequency distribution)
+  - **Logarithmic**: Perceptual mapping (more resolution in low frequencies)
+- **Min Freq / Max Freq**: Frequency range for logarithmic mapping (20Hz - 20kHz default)
 - **Min dB**: Controls dynamic range (black pixel amplitude)
 - **Gamma**: Brightness curve (>1 = brighter, <1 = darker)
 - **Griffin-Lim Iterations**: More = better phase estimation (diminishing returns >64)
@@ -160,13 +196,33 @@ Release\img2spec.exe
 
 ### STEP 4: ✅ Advanced Features
 - [x] Logarithmic frequency mapping
-- [x] Perceptual frequency scaling (20Hz - 20kHz)
+- [x] Perceptual frequency scaling (20Hz - 20kHz configurable)
+- [x] Visual frequency guides on image preview
+- [x] Real-time audio duration estimation
+- [x] Enhanced progress dialog with detailed status
 
 ### STEP 5: 🚧 Performance & UX (Partially Complete)
-- [x] Progress reporting (progress bar updates)
+- [x] Progress reporting with detailed rendering stages
+- [x] Drag & drop support for image loading
+- [x] Duration calculation and display
 - [ ] Background rendering thread (renders on main thread currently)
-- [ ] Cancel operation (placeholder implemented)
-- [ ] Memory optimization for large images (basic limits in place)
+- [ ] Cancel operation during rendering
+- [ ] Memory optimization for very large images
+
+## Test Images (MIT-Compatible)
+
+リポジトリに同梱したり、テスト用として利用して問題ない画像の例です。本アプリは白黒（グレースケール）で扱うため、写真以外にも境界がはっきりした図形・パターンも有効です。
+
+| ソース | 内容 | ライセンス・利用条件 |
+|--------|------|----------------------|
+| **Kodak Lossless True Color Image Suite** | 写真（768×512 等）。Kodak が無制限利用を許諾。 | 実質パブリックドメイン相当（無制限利用） |
+| **PngSuite** (Willem van Schaik) | グレースケール・パレット等の基本フォーマット。小さい図形・パターンが多く、境界がはっきりしたテスト向き。 | "Permission to use, copy, and distribute for any purpose and without fee"（MIT と両立） |
+| **test-images (GitHub)** | PNG テスト画像集。リポジトリは MIT。 | リポジトリは MIT（含まれる写真・アートは各作者の (c)、商用利用可を意図した選定） |
+| **自作のグラデーション・市松模様** | スクリプトや画像編集で生成した単純なパターン。 | 自分で作成すれば本プロジェクトの MIT のまま配布可能 |
+
+- **Kodak**: https://r0k.us/graphics/kodak/ などで配布されている 24 枚セットが有名です。
+- **PngSuite**: http://www.schaik.com/pngsuite/ または libpng の pngsuite（多数の小さい PNG）。
+- **Lenna（レナ）画像**は歴史的に有名ですが、出典・倫理上の理由から使用は推奨されません。
 
 ## Known Limitations
 
@@ -205,17 +261,20 @@ cmake .. -DCMAKE_PREFIX_PATH=/path/to/qt6
 ```
 img2spec/
 ├── app/
-│   ├── main.cpp              # Application entry point
-│   ├── MainWindow.h/cpp      # Main GUI window
+│   ├── main.cpp                    # Application entry point
+│   ├── MainWindow.h/cpp            # Main GUI window
+│   ├── ImagePreviewWidget.h/cpp    # Custom preview with frequency guides
 ├── core/
-│   ├── ImageLoader.h/cpp     # Image loading & grayscale conversion
-│   ├── SpectrogramBuilder.h/cpp  # Image → magnitude spectrogram
-│   ├── Stft.h/cpp            # STFT/ISTFT implementation
-│   ├── GriffinLim.h/cpp      # Griffin-Lim phase reconstruction
-│   ├── Leveling.h/cpp        # DC removal, normalize, gain, limiter
-│   ├── WavWriter.h/cpp       # WAV file export
-├── CMakeLists.txt            # Build configuration
-└── README.md                 # This file
+│   ├── ImageLoader.h/cpp           # Image loading & grayscale conversion
+│   ├── SpectrogramBuilder.h/cpp    # Image → magnitude spectrogram
+│   ├── Stft.h/cpp                  # STFT/ISTFT implementation
+│   ├── GriffinLim.h/cpp            # Griffin-Lim phase reconstruction
+│   ├── Leveling.h/cpp              # DC removal, normalize, gain, limiter
+│   ├── WavWriter.h/cpp             # WAV file export
+├── docs/
+│   └── images/                     # Screenshots and documentation images
+├── CMakeLists.txt                  # Build configuration
+└── README.md                       # This file
 ```
 
 ### Build Log Location
