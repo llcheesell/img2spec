@@ -168,7 +168,12 @@ void MainWindow::setupUI() {
     renderButton_ = new QPushButton("Render && Export WAV...", this);
     renderButton_->setEnabled(false);
     connect(renderButton_, &QPushButton::clicked, this, &MainWindow::onRender);
+    connect(renderButton_, &QPushButton::clicked, []() {
+        std::cout << "Render button clicked!" << std::endl;
+        std::cout.flush();
+    });
     renderLayout->addWidget(renderButton_);
+    std::cout << "Render button created and connected" << std::endl;
 
     cancelButton_ = new QPushButton("Cancel", this);
     cancelButton_->setEnabled(false);
@@ -255,18 +260,30 @@ void MainWindow::updatePreview() {
 }
 
 void MainWindow::onRender() {
+    std::cout << "\n=== onRender() called ===" << std::endl;
+    std::cout.flush();
+
     if (!imageLoader_->isLoaded()) {
+        std::cout << "ERROR: No image loaded!" << std::endl;
         QMessageBox::warning(this, "Error", "No image loaded.");
         return;
     }
+
+    std::cout << "Image is loaded. Opening save dialog..." << std::endl;
+    std::cout.flush();
 
     // Get save file path
     QString savePath = QFileDialog::getSaveFileName(
         this,
         "Save WAV File",
         "",
-        "WAV Files (*.wav);;All Files (*)"
+        "WAV Files (*.wav);;All Files (*)",
+        nullptr,
+        QFileDialog::DontUseNativeDialog  // Force Qt dialog for consistency
     );
+
+    std::cout << "Save dialog returned: " << (savePath.isEmpty() ? "(cancelled)" : savePath.toStdString()) << std::endl;
+    std::cout.flush();
 
     if (savePath.isEmpty()) {
         return;
