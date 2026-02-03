@@ -35,7 +35,20 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
 
 ## Installation
 
-Please build from source (see instructions below). Pre-built binaries are not currently available due to code-signing complexities.
+### Download Source Code
+
+Download the latest release from the [Releases page](https://github.com/YOUR_USERNAME/img2spec/releases):
+- Click on "Source code (zip)" or "Source code (tar.gz)"
+- Extract the archive
+- Follow the build instructions below
+
+Alternatively, clone the repository:
+```bash
+git clone https://github.com/YOUR_USERNAME/img2spec.git
+cd img2spec
+```
+
+**Note**: Pre-built binaries are not available due to macOS code-signing requirements. Building from source ensures compatibility with your system.
 
 ## Technology Stack
 
