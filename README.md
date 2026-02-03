@@ -4,14 +4,13 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
 
 ## Screenshots
 
+### Application Interface
 ![Main Window](docs/images/screenshot-main.png)
-*Main application window with image preview and parameter controls*
+*Main application window with image preview, frequency guides, and comprehensive parameter controls*
 
-![Frequency Guides](docs/images/screenshot-frequency-guides.png)
-*Logarithmic frequency scale with visual guides*
-
-![Progress Dialog](docs/images/screenshot-progress.png)
-*Real-time rendering progress with Griffin-Lim iterations*
+### Output Result
+![Spectrogram Result](docs/images/spectrogram-result.png)
+*Generated audio visualized as spectrogram in Adobe Audition - showing accurate frequency reconstruction*
 
 ## Features
 
@@ -34,6 +33,14 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
   - Drag & drop support for images
   - Detailed progress dialog during rendering
 
+## Download & Installation
+
+### Pre-built Binaries (Recommended)
+
+**Coming Soon**: Pre-built releases will be available on the [Releases page](https://github.com/YOUR_USERNAME/img2spec/releases).
+
+For now, please build from source (see below).
+
 ## Technology Stack
 
 - **GUI**: Qt6 (cross-platform UI)
@@ -42,9 +49,9 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
 - **Image loading**: stb_image (PNG/JPG support)
 - **Build**: CMake 3.20+
 
-## Build Requirements
+## Build from Source
 
-### macOS
+### macOS Requirements
 
 ```bash
 # Install Qt6
@@ -57,15 +64,13 @@ brew install libsndfile
 brew install cmake
 ```
 
-### Windows
+### Windows Requirements
 
 1. Install Qt6 from https://www.qt.io/download
 2. Install CMake from https://cmake.org/download/
 3. Install Visual Studio 2019 or later with C++ support
 
-## Building
-
-### macOS
+#### macOS Build Steps
 
 ```bash
 # Clone the repository
@@ -85,7 +90,7 @@ cmake --build . --config Release
 ./img2spec
 ```
 
-### Windows (Visual Studio)
+#### Windows Build Steps (Visual Studio)
 
 ```bash
 # Open Developer Command Prompt
@@ -208,21 +213,6 @@ Release\img2spec.exe
 - [ ] Background rendering thread (renders on main thread currently)
 - [ ] Cancel operation during rendering
 - [ ] Memory optimization for very large images
-
-## Test Images (MIT-Compatible)
-
-リポジトリに同梱したり、テスト用として利用して問題ない画像の例です。本アプリは白黒（グレースケール）で扱うため、写真以外にも境界がはっきりした図形・パターンも有効です。
-
-| ソース | 内容 | ライセンス・利用条件 |
-|--------|------|----------------------|
-| **Kodak Lossless True Color Image Suite** | 写真（768×512 等）。Kodak が無制限利用を許諾。 | 実質パブリックドメイン相当（無制限利用） |
-| **PngSuite** (Willem van Schaik) | グレースケール・パレット等の基本フォーマット。小さい図形・パターンが多く、境界がはっきりしたテスト向き。 | "Permission to use, copy, and distribute for any purpose and without fee"（MIT と両立） |
-| **test-images (GitHub)** | PNG テスト画像集。リポジトリは MIT。 | リポジトリは MIT（含まれる写真・アートは各作者の (c)、商用利用可を意図した選定） |
-| **自作のグラデーション・市松模様** | スクリプトや画像編集で生成した単純なパターン。 | 自分で作成すれば本プロジェクトの MIT のまま配布可能 |
-
-- **Kodak**: https://r0k.us/graphics/kodak/ などで配布されている 24 枚セットが有名です。
-- **PngSuite**: http://www.schaik.com/pngsuite/ または libpng の pngsuite（多数の小さい PNG）。
-- **Lenna（レナ）画像**は歴史的に有名ですが、出典・倫理上の理由から使用は推奨されません。
 
 ## Known Limitations
 
