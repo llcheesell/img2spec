@@ -4,14 +4,13 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
 
 ## Screenshots
 
+### Application Interface
 ![Main Window](docs/images/screenshot-main.png)
-*Main application window with image preview and parameter controls*
+*Main application window with image preview, frequency guides, and comprehensive parameter controls*
 
-![Frequency Guides](docs/images/screenshot-frequency-guides.png)
-*Logarithmic frequency scale with visual guides*
-
-![Progress Dialog](docs/images/screenshot-progress.png)
-*Real-time rendering progress with Griffin-Lim iterations*
+### Output Result
+![Spectrogram Result](docs/images/spectrogram-result.png)
+*Generated audio visualized as spectrogram in Adobe Audition - showing accurate frequency reconstruction*
 
 ## Features
 
