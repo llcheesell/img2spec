@@ -14,14 +14,25 @@
 #include <QUrl>
 #include <QProgressDialog>
 #include <QApplication>
+#include <QAudio>
+#include <QAudioDevice>
+#include <QAudioFormat>
+#include <QAudioSink>
+#include <QBuffer>
+#include <QMediaDevices>
 #include <iostream>
+#include <algorithm>
+#include <cstdint>
 #include <cmath>
+#include <cstring>
 
 namespace img2spec {
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , imageLoader_(std::make_unique<ImageLoader>())
+    , previewSink_(nullptr)
+    , previewBuffer_(nullptr)
 {
     setupUI();
     setWindowTitle("img2spec - Image to Spectrogram Audio Generator");
@@ -32,7 +43,9 @@ MainWindow::MainWindow(QWidget* parent)
     std::cout << "Drag and drop enabled" << std::endl;
 }
 
-MainWindow::~MainWindow() {}
+MainWindow::~MainWindow() {
+    stopPreviewPlayback();
+}
 
 void MainWindow::setupUI() {
     auto* centralWidget = new QWidget(this);
@@ -208,6 +221,11 @@ void MainWindow::setupUI() {
     renderLayout->addWidget(renderButton_);
     std::cout << "Render button created and connected" << std::endl;
 
+    previewButton_ = new QPushButton("Preview", this);
+    previewButton_->setEnabled(false);
+    connect(previewButton_, &QPushButton::clicked, this, &MainWindow::onPreview);
+    renderLayout->addWidget(previewButton_);
+
     cancelButton_ = new QPushButton("Cancel", this);
     cancelButton_->setEnabled(false);
     connect(cancelButton_, &QPushButton::clicked, this, &MainWindow::onCancel);
@@ -225,6 +243,7 @@ void MainWindow::setupUI() {
 
 void MainWindow::loadImageFile(const QString& path) {
     std::cout << "Loading image: " << path.toStdString() << std::endl;
+    stopPreviewPlayback();
 
     if (!imageLoader_->load(path.toStdString())) {
         QMessageBox::critical(this, "Error", "Failed to load image.\nPath: " + path);
@@ -236,6 +255,7 @@ void MainWindow::loadImageFile(const QString& path) {
     updateFrequencyGuides();
     updateDurationEstimate();
     renderButton_->setEnabled(true);
+    previewButton_->setEnabled(true);
 
     std::cout << "Image loaded successfully: " << imageLoader_->getWidth() << "x"
               << imageLoader_->getHeight() << std::endl;
@@ -379,9 +399,294 @@ void MainWindow::updateDurationEstimate() {
               << " (" << durationSeconds << " seconds)" << std::endl;
 }
 
+bool MainWindow::generateAudio(std::vector<float>& finalAudio,
+                               int& sampleRate,
+                               int& channels,
+                               QString* errorMessage,
+                               QProgressDialog* progressDialog) {
+    if (!imageLoader_->isLoaded()) {
+        if (errorMessage) {
+            *errorMessage = "No image loaded.";
+        }
+        return false;
+    }
+
+    auto updateProgress = [&](int value, const QString& text) {
+        if (!progressDialog) {
+            return;
+        }
+        progressDialog->setValue(value);
+        if (!text.isEmpty()) {
+            progressDialog->setLabelText(text);
+        }
+        QApplication::processEvents();
+    };
+
+    try {
+        // Get parameters from UI
+        sampleRate = sampleRateCombo_->currentText().toInt();
+        const int fftSize = fftSizeCombo_->currentText().toInt();
+
+        // Parse hop size
+        int hopSize = fftSize / 4; // Default
+        QString hopText = hopSizeCombo_->currentText();
+        if (hopText.contains("/2")) hopSize = fftSize / 2;
+        else if (hopText.contains("/4")) hopSize = fftSize / 4;
+        else if (hopText.contains("/8")) hopSize = fftSize / 8;
+
+        const bool isLinear = (freqScaleCombo_->currentIndex() == 0);
+        const double minDb = minDbSpin_->value();
+        const double gamma = gammaSpin_->value();
+        const int iterations = iterationsSpin_->value();
+        const double normalizeTarget = normalizeTargetSpin_->value();
+        const double outputGain = outputGainSpin_->value();
+        const bool useLimiter = limiterCheck_->isChecked();
+        const bool stereo = stereoCheck_->isChecked();
+        const double minFreq = minFreqSpin_->value();
+        const double maxFreq = maxFreqSpin_->value();
+
+        if (!isLinear && minFreq >= maxFreq) {
+            throw std::runtime_error("Min frequency must be lower than max frequency.");
+        }
+
+        std::cout << "Parameters:" << std::endl;
+        std::cout << "  Sample Rate: " << sampleRate << " Hz" << std::endl;
+        std::cout << "  FFT Size: " << fftSize << std::endl;
+        std::cout << "  Hop Size: " << hopSize << std::endl;
+        std::cout << "  Frequency Scale: " << (isLinear ? "Linear" : "Logarithmic") << std::endl;
+        std::cout << "  Min dB: " << minDb << std::endl;
+        std::cout << "  Gamma: " << gamma << std::endl;
+        std::cout << "  Griffin-Lim Iterations: " << iterations << std::endl;
+        std::cout << "  Normalize Target: " << normalizeTarget << " dBFS" << std::endl;
+        std::cout << "  Output Gain: " << outputGain << " dB" << std::endl;
+        std::cout << "  Safety Limiter: " << (useLimiter ? "ON" : "OFF") << std::endl;
+        std::cout << "  Stereo: " << (stereo ? "YES" : "NO") << std::endl;
+
+        updateProgress(5, "Building spectrogram from image...");
+
+        // Step 1: Build magnitude spectrogram from image
+        SpectrogramBuilder specBuilder;
+        SpectrogramParams specParams;
+        specParams.fftSize = fftSize;
+        specParams.hopSize = hopSize;
+        specParams.sampleRate = sampleRate;
+        specParams.freqScale = isLinear ? FrequencyScale::Linear : FrequencyScale::Logarithmic;
+        specParams.minFreqHz = minFreq;
+        specParams.maxFreqHz = maxFreq;
+        specParams.minDb = minDb;
+        specParams.gamma = gamma;
+
+        auto magnitudeSpec = specBuilder.buildMagnitudeSpectrogram(
+            imageLoader_->getGrayscaleData(),
+            imageLoader_->getWidth(),
+            imageLoader_->getHeight(),
+            specParams
+        );
+
+        updateProgress(15, "Reconstructing phase with Griffin-Lim algorithm...");
+
+        // Step 2: Griffin-Lim reconstruction
+        Stft stft(fftSize, hopSize);
+        GriffinLim griffinLim;
+
+        auto progressCallback = [progressDialog](int current, int total) {
+            if (!progressDialog) {
+                return;
+            }
+            const int progress = 15 + (current * 70 / total);
+            progressDialog->setValue(progress);
+            progressDialog->setLabelText(QString("Griffin-Lim iteration %1 / %2...").arg(current).arg(total));
+            QApplication::processEvents();
+        };
+
+        std::vector<float> audio = griffinLim.reconstruct(
+            magnitudeSpec,
+            stft,
+            iterations,
+            progressCallback,
+            nullptr // cancelFlag (TODO: STEP 5)
+        );
+
+        updateProgress(85, "Post-processing audio...");
+
+        if (audio.empty()) {
+            throw std::runtime_error("Griffin-Lim reconstruction failed");
+        }
+
+        // Step 3: Post-processing
+        std::cout << "\n=== Post-processing ===" << std::endl;
+
+        Leveling::removeDCOffset(audio);
+        std::cout << "  DC offset removed" << std::endl;
+
+        Leveling::normalize(audio, normalizeTarget);
+        std::cout << "  Normalized to " << normalizeTarget << " dBFS" << std::endl;
+
+        Leveling::applyGain(audio, outputGain);
+        std::cout << "  Applied gain: " << outputGain << " dB" << std::endl;
+
+        if (useLimiter) {
+            Leveling::applySafetyLimiter(audio);
+            std::cout << "  Safety limiter applied" << std::endl;
+        }
+
+        updateProgress(90, "Preparing audio...");
+
+        // Step 4: Convert to stereo if requested
+        finalAudio = audio;
+        channels = 1;
+        if (stereo) {
+            finalAudio = Leveling::monoToStereo(audio);
+            channels = 2;
+            std::cout << "  Converted to stereo" << std::endl;
+        }
+
+        return true;
+    } catch (const std::exception& e) {
+        if (errorMessage) {
+            *errorMessage = e.what();
+        }
+        return false;
+    }
+}
+
+void MainWindow::onPreview() {
+    if (!imageLoader_->isLoaded()) {
+        QMessageBox::warning(this, "Error", "No image loaded.");
+        return;
+    }
+
+    if (previewSink_ && previewSink_->state() == QAudio::ActiveState) {
+        stopPreviewPlayback();
+        return;
+    }
+
+    stopPreviewPlayback();
+
+    QProgressDialog progressDialog("Rendering preview audio...", "Cancel", 0, 100, this);
+    progressDialog.setWindowTitle("Preview");
+    progressDialog.setWindowModality(Qt::WindowModal);
+    progressDialog.setMinimumDuration(0);
+    progressDialog.setValue(0);
+    progressDialog.show();
+    QApplication::processEvents();
+
+    setUIEnabled(false);
+
+    std::vector<float> finalAudio;
+    int sampleRate = 0;
+    int channels = 0;
+    QString errorMessage;
+    const bool success = generateAudio(finalAudio, sampleRate, channels, &errorMessage, &progressDialog);
+
+    setUIEnabled(true);
+    progressBar_->setValue(0);
+
+    if (!success) {
+        if (errorMessage.isEmpty()) {
+            errorMessage = "Failed to render preview audio.";
+        }
+        QMessageBox::critical(this, "Preview Error",
+            QString("Failed to render preview audio:\n%1").arg(errorMessage));
+        return;
+    }
+
+    progressDialog.setValue(95);
+    progressDialog.setLabelText("Starting playback...");
+    QApplication::processEvents();
+
+    startPreviewPlayback(finalAudio, sampleRate, channels);
+
+    progressDialog.setValue(100);
+    QApplication::processEvents();
+}
+
+void MainWindow::startPreviewPlayback(const std::vector<float>& audio, int sampleRate, int channels) {
+    if (audio.empty()) {
+        QMessageBox::warning(this, "Preview Error", "Generated audio is empty.");
+        return;
+    }
+
+    QAudioDevice device = QMediaDevices::defaultAudioOutput();
+    if (device.isNull()) {
+        QMessageBox::warning(this, "Preview Error", "No audio output device is available.");
+        return;
+    }
+
+    QAudioFormat format;
+    format.setSampleRate(sampleRate);
+    format.setChannelCount(channels);
+    format.setSampleFormat(QAudioFormat::Float);
+
+    QAudioFormat::SampleFormat sampleFormat = QAudioFormat::Float;
+    if (!device.isFormatSupported(format)) {
+        format.setSampleFormat(QAudioFormat::Int16);
+        sampleFormat = QAudioFormat::Int16;
+        if (!device.isFormatSupported(format)) {
+            QMessageBox::warning(this, "Preview Error",
+                QString("Audio device does not support the current format.\nSample Rate: %1 Hz\nChannels: %2\nTry a different sample rate or disable stereo.")
+                    .arg(sampleRate)
+                    .arg(channels));
+            return;
+        }
+    }
+
+    QByteArray audioBytes;
+    if (sampleFormat == QAudioFormat::Float) {
+        audioBytes.resize(static_cast<int>(audio.size() * sizeof(float)));
+        std::memcpy(audioBytes.data(), audio.data(), audioBytes.size());
+    } else {
+        audioBytes.resize(static_cast<int>(audio.size() * sizeof(int16_t)));
+        auto* dst = reinterpret_cast<int16_t*>(audioBytes.data());
+        for (size_t i = 0; i < audio.size(); ++i) {
+            const float clamped = std::max(-1.0f, std::min(1.0f, audio[i]));
+            dst[i] = static_cast<int16_t>(std::lrintf(clamped * 32767.0f));
+        }
+    }
+
+    previewBuffer_ = new QBuffer(this);
+    previewBuffer_->setData(audioBytes);
+    previewBuffer_->open(QIODevice::ReadOnly);
+
+    previewSink_ = new QAudioSink(device, format, this);
+    connect(previewSink_, &QAudioSink::stateChanged, this, [this](QAudio::State state) {
+        if (state == QAudio::IdleState) {
+            stopPreviewPlayback();
+        } else if (state == QAudio::StoppedState) {
+            if (previewSink_ && previewSink_->error() != QAudio::NoError) {
+                QMessageBox::warning(this, "Preview Error", "Audio playback failed.");
+                stopPreviewPlayback();
+            }
+        }
+    });
+
+    previewSink_->start(previewBuffer_);
+    previewButton_->setText("Stop Preview");
+}
+
+void MainWindow::stopPreviewPlayback() {
+    if (previewSink_) {
+        previewSink_->stop();
+        previewSink_->deleteLater();
+        previewSink_ = nullptr;
+    }
+
+    if (previewBuffer_) {
+        previewBuffer_->close();
+        previewBuffer_->deleteLater();
+        previewBuffer_ = nullptr;
+    }
+
+    if (previewButton_) {
+        previewButton_->setText("Preview");
+    }
+}
+
 void MainWindow::onRender() {
     std::cout << "\n=== onRender() called ===" << std::endl;
     std::cout.flush();
+
+    stopPreviewPlayback();
 
     if (!imageLoader_->isLoaded()) {
         std::cout << "ERROR: No image loaded!" << std::endl;
@@ -430,25 +735,17 @@ void MainWindow::onRender() {
     setUIEnabled(false);
 
     try {
-        // Get parameters from UI
-        const int sampleRate = sampleRateCombo_->currentText().toInt();
-        const int fftSize = fftSizeCombo_->currentText().toInt();
+        std::vector<float> finalAudio;
+        int sampleRate = 0;
+        int channels = 0;
+        QString errorMessage;
 
-        // Parse hop size
-        int hopSize = fftSize / 4; // Default
-        QString hopText = hopSizeCombo_->currentText();
-        if (hopText.contains("/2")) hopSize = fftSize / 2;
-        else if (hopText.contains("/4")) hopSize = fftSize / 4;
-        else if (hopText.contains("/8")) hopSize = fftSize / 8;
-
-        const bool isLinear = (freqScaleCombo_->currentIndex() == 0);
-        const double minDb = minDbSpin_->value();
-        const double gamma = gammaSpin_->value();
-        const int iterations = iterationsSpin_->value();
-        const double normalizeTarget = normalizeTargetSpin_->value();
-        const double outputGain = outputGainSpin_->value();
-        const bool useLimiter = limiterCheck_->isChecked();
-        const bool stereo = stereoCheck_->isChecked();
+        if (!generateAudio(finalAudio, sampleRate, channels, &errorMessage, &progressDialog)) {
+            const std::string message = errorMessage.isEmpty()
+                ? "Failed to render audio."
+                : errorMessage.toStdString();
+            throw std::runtime_error(message);
+        }
 
         // Parse bit depth
         BitDepth bitDepth = BitDepth::Int16;
@@ -456,102 +753,6 @@ void MainWindow::onRender() {
         if (bitDepthIdx == 0) bitDepth = BitDepth::Int16;
         else if (bitDepthIdx == 1) bitDepth = BitDepth::Int24;
         else if (bitDepthIdx == 2) bitDepth = BitDepth::Float32;
-
-        std::cout << "Parameters:" << std::endl;
-        std::cout << "  Sample Rate: " << sampleRate << " Hz" << std::endl;
-        std::cout << "  FFT Size: " << fftSize << std::endl;
-        std::cout << "  Hop Size: " << hopSize << std::endl;
-        std::cout << "  Frequency Scale: " << (isLinear ? "Linear" : "Logarithmic") << std::endl;
-        std::cout << "  Min dB: " << minDb << std::endl;
-        std::cout << "  Gamma: " << gamma << std::endl;
-        std::cout << "  Griffin-Lim Iterations: " << iterations << std::endl;
-        std::cout << "  Normalize Target: " << normalizeTarget << " dBFS" << std::endl;
-        std::cout << "  Output Gain: " << outputGain << " dB" << std::endl;
-        std::cout << "  Safety Limiter: " << (useLimiter ? "ON" : "OFF") << std::endl;
-        std::cout << "  Stereo: " << (stereo ? "YES" : "NO") << std::endl;
-
-        progressDialog.setValue(5);
-        progressDialog.setLabelText("Building spectrogram from image...");
-        QApplication::processEvents();
-
-        // Step 1: Build magnitude spectrogram from image
-        SpectrogramBuilder specBuilder;
-        SpectrogramParams specParams;
-        specParams.fftSize = fftSize;
-        specParams.hopSize = hopSize;
-        specParams.sampleRate = sampleRate;
-        specParams.freqScale = isLinear ? FrequencyScale::Linear : FrequencyScale::Logarithmic;
-        specParams.minFreqHz = minFreqSpin_->value();
-        specParams.maxFreqHz = maxFreqSpin_->value();
-        specParams.minDb = minDb;
-        specParams.gamma = gamma;
-
-        auto magnitudeSpec = specBuilder.buildMagnitudeSpectrogram(
-            imageLoader_->getGrayscaleData(),
-            imageLoader_->getWidth(),
-            imageLoader_->getHeight(),
-            specParams
-        );
-
-        progressDialog.setValue(15);
-        progressDialog.setLabelText("Reconstructing phase with Griffin-Lim algorithm...");
-        QApplication::processEvents();
-
-        // Step 2: Griffin-Lim reconstruction
-        Stft stft(fftSize, hopSize);
-        GriffinLim griffinLim;
-
-        auto progressCallback = [&progressDialog](int current, int total) {
-            const int progress = 15 + (current * 70 / total);
-            progressDialog.setValue(progress);
-            progressDialog.setLabelText(QString("Griffin-Lim iteration %1 / %2...").arg(current).arg(total));
-            QApplication::processEvents();
-        };
-
-        std::vector<float> audio = griffinLim.reconstruct(
-            magnitudeSpec,
-            stft,
-            iterations,
-            progressCallback,
-            nullptr // cancelFlag (TODO: STEP 5)
-        );
-
-        progressDialog.setValue(85);
-        progressDialog.setLabelText("Post-processing audio...");
-        QApplication::processEvents();
-
-        if (audio.empty()) {
-            throw std::runtime_error("Griffin-Lim reconstruction failed");
-        }
-
-        // Step 3: Post-processing
-        std::cout << "\n=== Post-processing ===" << std::endl;
-
-        Leveling::removeDCOffset(audio);
-        std::cout << "  DC offset removed" << std::endl;
-
-        Leveling::normalize(audio, normalizeTarget);
-        std::cout << "  Normalized to " << normalizeTarget << " dBFS" << std::endl;
-
-        Leveling::applyGain(audio, outputGain);
-        std::cout << "  Applied gain: " << outputGain << " dB" << std::endl;
-
-        if (useLimiter) {
-            Leveling::applySafetyLimiter(audio);
-            std::cout << "  Safety limiter applied" << std::endl;
-        }
-
-        progressDialog.setValue(90);
-        QApplication::processEvents();
-
-        // Step 4: Convert to stereo if requested
-        std::vector<float> finalAudio = audio;
-        int channels = 1;
-        if (stereo) {
-            finalAudio = Leveling::monoToStereo(audio);
-            channels = 2;
-            std::cout << "  Converted to stereo" << std::endl;
-        }
 
         // Step 5: Write WAV file
         progressDialog.setValue(95);
@@ -572,11 +773,14 @@ void MainWindow::onRender() {
         QApplication::processEvents();
 
         if (success) {
+            const double durationSeconds = (sampleRate > 0 && channels > 0)
+                ? (finalAudio.size() / static_cast<double>(sampleRate * channels))
+                : 0.0;
             std::cout << "\n=== Render Complete ===" << std::endl;
             QMessageBox::information(this, "Success",
                 QString("Audio rendered successfully!\n\nFile: %1\nDuration: %2 seconds")
                     .arg(savePath)
-                    .arg(audio.size() / static_cast<double>(sampleRate), 0, 'f', 2));
+                    .arg(durationSeconds, 0, 'f', 2));
         } else {
             throw std::runtime_error("Failed to write WAV file");
         }
@@ -599,6 +803,7 @@ void MainWindow::onCancel() {
 void MainWindow::setUIEnabled(bool enabled) {
     openButton_->setEnabled(enabled);
     renderButton_->setEnabled(enabled && imageLoader_->isLoaded());
+    previewButton_->setEnabled(enabled && imageLoader_->isLoaded());
     cancelButton_->setEnabled(!enabled);
 }
 

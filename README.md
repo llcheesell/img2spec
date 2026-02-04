@@ -30,6 +30,7 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
 - **Enhanced UX**:
   - Visual frequency guides on image preview (logarithmic mode)
   - Real-time audio duration estimation
+  - In-app preview playback before export
   - Drag & drop support for images
   - Detailed progress dialog during rendering
 
@@ -156,7 +157,11 @@ Release\img2spec.exe
    - Common frequencies marked: 50Hz, 100Hz, 200Hz, 500Hz, 1kHz, 2kHz, 5kHz, 10kHz, 15kHz
    - Helps understand which parts of the image correspond to which frequencies
 
-6. **Render**: Click "Render & Export WAV..."
+6. **Preview**: Click "Preview" to audition audio in-app
+   - Playback uses current settings without exporting a file
+   - Click again to stop playback
+
+7. **Render**: Click "Render & Export WAV..."
    - Choose save location for WAV file
    - Progress dialog shows detailed rendering status:
      - Spectrogram building
@@ -165,7 +170,7 @@ Release\img2spec.exe
      - WAV file writing
    - Success dialog displays when complete
 
-7. **Listen**: Open the generated WAV file in any audio player or DAW
+8. **Listen**: Open the generated WAV file in any audio player or DAW
 
 ### Parameter Guide
 

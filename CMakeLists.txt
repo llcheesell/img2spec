@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Qt6
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui Multimedia)
 
 # Remove OpenGL-related frameworks on macOS to avoid AGL issue
 if(APPLE)
@@ -148,6 +148,7 @@ target_link_libraries(img2spec PRIVATE
     img2spec_core
     Qt6::Widgets
     Qt6::Gui
+    Qt6::Multimedia
 )
 
 # Platform-specific settings

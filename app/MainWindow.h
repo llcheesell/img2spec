@@ -13,11 +13,16 @@
 #include <QGroupBox>
 #include <QPixmap>
 #include <memory>
+#include <vector>
 
 #include "core/ImageLoader.h"
 #include "app/ImagePreviewWidget.h"
 
 namespace img2spec {
+
+class QAudioSink;
+class QBuffer;
+class QProgressDialog;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -29,6 +34,7 @@ public:
 private slots:
     void onOpenImage();
     void onRender();
+    void onPreview();
     void onCancel();
 
 protected:
@@ -42,11 +48,19 @@ private:
     void updateDurationEstimate();
     void setUIEnabled(bool enabled);
     void loadImageFile(const QString& path);
+    bool generateAudio(std::vector<float>& finalAudio,
+                       int& sampleRate,
+                       int& channels,
+                       QString* errorMessage,
+                       QProgressDialog* progressDialog);
+    void startPreviewPlayback(const std::vector<float>& audio, int sampleRate, int channels);
+    void stopPreviewPlayback();
 
     // UI Components
     ImagePreviewWidget* imagePreview_;
     QPushButton* openButton_;
     QPushButton* renderButton_;
+    QPushButton* previewButton_;
     QPushButton* cancelButton_;
     QProgressBar* progressBar_;
 
@@ -71,6 +85,8 @@ private:
     // Data
     std::unique_ptr<ImageLoader> imageLoader_;
     QString currentImagePath_;
+    QAudioSink* previewSink_;
+    QBuffer* previewBuffer_;
 };
 
 } // namespace img2spec
