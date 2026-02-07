@@ -13,9 +13,14 @@
 #include <QGroupBox>
 #include <QPixmap>
 #include <memory>
+#include <vector>
 
 #include "core/ImageLoader.h"
 #include "app/ImagePreviewWidget.h"
+#include <QAudioSink>
+#include <QBuffer>
+#include <QProgressDialog>
+#include <QTimer>
 
 namespace img2spec {
 
@@ -29,6 +34,7 @@ public:
 private slots:
     void onOpenImage();
     void onRender();
+    void onPreview();
     void onCancel();
 
 protected:
@@ -42,11 +48,21 @@ private:
     void updateDurationEstimate();
     void setUIEnabled(bool enabled);
     void loadImageFile(const QString& path);
+    bool generateAudio(std::vector<float>& finalAudio,
+                       int& sampleRate,
+                       int& channels,
+                       QString* errorMessage,
+                       QProgressDialog* progressDialog);
+    void startPreviewPlayback(const std::vector<float>& audio, int sampleRate, int channels);
+    void stopPreviewPlayback();
+    void updatePreviewPosition();
 
     // UI Components
     ImagePreviewWidget* imagePreview_;
+    QLabel* playbackHeaderLabel_;
     QPushButton* openButton_;
     QPushButton* renderButton_;
+    QPushButton* previewButton_;
     QPushButton* cancelButton_;
     QProgressBar* progressBar_;
 
@@ -65,12 +81,18 @@ private:
     QDoubleSpinBox* outputGainSpin_;
     QCheckBox* limiterCheck_;
     QCheckBox* stereoCheck_;
+    QCheckBox* useTargetDurationCheck_;
+    QDoubleSpinBox* targetDurationSpin_;
 
     QLabel* durationLabel_;
 
     // Data
     std::unique_ptr<ImageLoader> imageLoader_;
     QString currentImagePath_;
+    QAudioSink* previewSink_;
+    QBuffer* previewBuffer_;
+    QTimer* previewPositionTimer_;
+    double previewDurationSec_ = 0.0;
 };
 
 } // namespace img2spec

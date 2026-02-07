@@ -61,7 +61,7 @@ Complete implementation of an image-to-audio converter that interprets images as
 - **MainWindow** ([app/MainWindow.cpp](app/MainWindow.cpp))
   - Image file dialog and drag & drop support
   - Enhanced image preview with frequency visualization
-  - Real-time audio duration estimation
+  - Real-time audio duration estimation; **optional target duration** (time-resample spectrogram to user-defined length)
   - Full parameter controls:
     - Sample rate selection
     - Bit depth selection
@@ -72,6 +72,11 @@ Complete implementation of an image-to-audio converter that interprets images as
     - MinDB, Gamma, Iterations
     - Normalize target, Output gain
     - Safety limiter, Stereo option
+    - **Set target duration** (checkbox + duration in seconds; resamples spectrogram along time axis)
+  - **Sound Preview**: in-app playback via Qt Multimedia (QAudioSink)
+    - Playback header showing current time / total (e.g. `Preview: 0:02.3 / 0:05.1`)
+    - Playhead (cyan vertical line) on spectrogram image during playback
+    - Stop Preview button; position updates on a timer using `processedUSecs()`
   - Progress dialog with detailed rendering stages
   - Success/error dialogs
   - Detailed console logging
@@ -83,11 +88,12 @@ Complete implementation of an image-to-audio converter that interprets images as
     - Visual markers for: 50Hz, 100Hz, 200Hz, 500Hz, 1kHz, 2kHz, 5kHz, 10kHz, 15kHz
     - Yellow dashed lines with clear labels
     - Helps users understand frequency mapping
+  - **Playback playhead**: vertical line showing current playback position when preview is active
 
 ### ✅ Build System (CMake)
 - Cross-platform: macOS / Windows
 - FetchContent for dependencies:
-  - Qt6 (Widgets, Gui, Core)
+  - Qt6 (Widgets, Gui, Core, **Multimedia** for Sound Preview)
   - kissfft (BSD license)
   - libsndfile (LGPL)
   - stb_image (Public domain)
@@ -128,7 +134,8 @@ Complete implementation of an image-to-audio converter that interprets images as
    - File dialog ("Open Image...")
    - Drag and drop onto window
 4. Verify image preview displays correctly
-5. Test frequency guides:
+5. Test **Sound Preview**: click Preview, confirm playback header (current/total) and playhead on image; click Stop Preview
+6. Test frequency guides:
    - Switch to "Logarithmic" scale
    - Verify frequency markers appear on image
    - Adjust Min/Max Freq and verify guides update
@@ -136,12 +143,13 @@ Complete implementation of an image-to-audio converter that interprets images as
    - Sample rate
    - FFT size
    - Hop size
-7. Render with default parameters
+7. Test **target duration**: check "Set target duration", set e.g. 5.0 s, render; verify output length is ~5 s
+8. Render with default parameters
 8. Verify progress dialog shows:
    - Detailed status messages
    - Griffin-Lim iteration count
    - Smooth progress bar updates
-9. Verify WAV file plays without artifacts
+9. Verify WAV file plays without artifacts (and that Preview matches exported WAV length when not using target duration)
 10. Test parameter variations:
     - Linear vs Log frequency scale
     - Different frequency ranges (e.g., 100-10kHz)
@@ -155,7 +163,8 @@ Complete implementation of an image-to-audio converter that interprets images as
 - Linear: Even frequency distribution across spectrum
 - Log: More bass content, perceptual frequency distribution
 - Frequency guides accurately show frequency positions in log mode
-- Duration estimation matches actual WAV file duration
+- Duration estimation matches actual WAV file duration; target duration resampling produces correct length
+- Preview playhead and header show correct position during playback
 - Higher gamma: Brighter, more high-freq content
 - More iterations: Smoother, more natural sound
 - Progress dialog shows meaningful updates throughout rendering
@@ -173,7 +182,7 @@ Complete implementation of an image-to-audio converter that interprets images as
 2. Cancel flag implementation with atomic bool
 3. Image size limit with pre-render warning
 4. Batch processing for multiple images
-5. Real-time preview (short audio snippet playback)
+5. ~~Real-time preview~~ ✅ Implemented (Sound Preview with playhead and position header)
 6. Preset saving/loading for parameter sets
 
 ## File Structure
@@ -185,8 +194,9 @@ img2spec/
 ├── IMPLEMENTATION_SUMMARY.md        # This file
 ├── TROUBLESHOOTING.md               # Problem-solving guide
 ├── docs/
-│   └── images/                      # Screenshots and documentation
-│       └── README.md                # Screenshot specifications
+│   ├── images/                      # Screenshots and documentation
+│   │   └── README.md                # Screenshot specifications
+│   └── ICON_PROMPT.md               # App icon design and ChatGPT prompt (release)
 ├── app/
 │   ├── main.cpp                     # Entry point
 │   ├── MainWindow.h                 # GUI declaration

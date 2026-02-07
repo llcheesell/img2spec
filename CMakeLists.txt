@@ -8,7 +8,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 # Qt6
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Gui Multimedia)
 
 # Remove OpenGL-related frameworks on macOS to avoid AGL issue
 if(APPLE)
@@ -148,6 +148,7 @@ target_link_libraries(img2spec PRIVATE
     img2spec_core
     Qt6::Widgets
     Qt6::Gui
+    Qt6::Multimedia
 )
 
 # Platform-specific settings
@@ -160,5 +161,43 @@ endif()
 if(APPLE)
     set_target_properties(img2spec PROPERTIES
         MACOSX_BUNDLE ON
+        MACOSX_BUNDLE_ICON_FILE AppIcon
     )
+    # Generate AppIcon.icns from docs/app-icon.png at build time (sips + iconutil)
+    set(APP_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/docs/app-icon.png")
+    set(APP_ICONSET_DIR "${CMAKE_CURRENT_BINARY_DIR}/AppIcon.iconset")
+    set(APP_ICNS_OUT "${CMAKE_CURRENT_BINARY_DIR}/AppIcon.icns")
+    if(EXISTS "${APP_ICON_PNG}")
+        add_custom_command(TARGET img2spec POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_ICONSET_DIR}"
+            COMMAND sips -z 16 16 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_16x16.png"
+            COMMAND sips -z 32 32 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_16x16@2x.png"
+            COMMAND sips -z 32 32 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_32x32.png"
+            COMMAND sips -z 64 64 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_32x32@2x.png"
+            COMMAND sips -z 128 128 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_128x128.png"
+            COMMAND sips -z 256 256 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_128x128@2x.png"
+            COMMAND sips -z 256 256 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_256x256.png"
+            COMMAND sips -z 512 512 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_256x256@2x.png"
+            COMMAND sips -z 512 512 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_512x512.png"
+            COMMAND sips -z 1024 1024 "${APP_ICON_PNG}" --out "${APP_ICONSET_DIR}/icon_512x512@2x.png"
+            COMMAND iconutil -c icns "${APP_ICONSET_DIR}" -o "${APP_ICNS_OUT}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_DIR:img2spec>/Contents/Resources"
+            COMMAND ${CMAKE_COMMAND} -E copy "${APP_ICNS_OUT}" "$<TARGET_BUNDLE_DIR:img2spec>/Contents/Resources/AppIcon.icns"
+            COMMENT "Building AppIcon.icns from docs/app-icon.png"
+        )
+        message(STATUS "App icon: will generate AppIcon.icns from docs/app-icon.png")
+    else()
+        message(STATUS "App icon: docs/app-icon.png not found, bundle will use default icon")
+    endif()
+endif()
+
+# Windows: embed icon via .rc (requires resources/img2spec.ico from docs/app-icon.png)
+if(WIN32)
+    set(APP_ICO "${CMAKE_CURRENT_SOURCE_DIR}/resources/img2spec.ico")
+    if(EXISTS "${APP_ICO}")
+        target_sources(img2spec PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/resources/img2spec.rc")
+        message(STATUS "App icon: using resources/img2spec.ico")
+    else()
+        message(STATUS "App icon: resources/img2spec.ico not found; create from docs/app-icon.png for exe icon")
+    endif()
 endif()

@@ -1,5 +1,7 @@
 # img2spec - Image to Spectrogram Audio Generator
 
+**日本語** → [README_JP.md](README_JP.md)
+
 Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses the Griffin-Lim algorithm for phase reconstruction and ISTFT for high-quality audio synthesis.
 
 ## Screenshots
@@ -29,17 +31,27 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
   - Normalize, Output Gain, Safety Limiter
 - **Enhanced UX**:
   - Visual frequency guides on image preview (logarithmic mode)
-  - Real-time audio duration estimation
+  - Real-time audio duration estimation; optional **target duration** (time-resample to user-defined length)
+  - **In-app Sound Preview**: play before export with position header (current / total) and playhead on the spectrogram image; stop with "Stop Preview"
   - Drag & drop support for images
   - Detailed progress dialog during rendering
 
-## Download & Installation
+## Installation
 
-### Pre-built Binaries (Recommended)
+### Download Source Code
 
-**Coming Soon**: Pre-built releases will be available on the [Releases page](https://github.com/YOUR_USERNAME/img2spec/releases).
+Download the latest release from the [Releases page](https://github.com/YOUR_USERNAME/img2spec/releases):
+- Click on "Source code (zip)" or "Source code (tar.gz)"
+- Extract the archive
+- Follow the build instructions below
 
-For now, please build from source (see below).
+Alternatively, clone the repository:
+```bash
+git clone https://github.com/YOUR_USERNAME/img2spec.git
+cd img2spec
+```
+
+**Note**: Pre-built binaries are not available due to macOS code-signing requirements. Building from source ensures compatibility with your system.
 
 ## Technology Stack
 
@@ -128,8 +140,8 @@ Release\img2spec.exe
 
 3. **Review Audio Duration**:
    - The estimated output duration is displayed below the parameters
-   - Calculated based on: `(Image Width × Hop Size) / Sample Rate`
-   - Adjust hop size and sample rate to control duration
+   - **From image**: `Duration = (Image Width × Hop Size) / Sample Rate`
+   - **Optional**: Check "Set target duration" and enter seconds (0.5–600); the image is time-resampled so the output length matches
 
 4. **Adjust Parameters**: Configure settings for your desired output
    - Start with defaults for first test
@@ -147,7 +159,13 @@ Release\img2spec.exe
    - Common frequencies marked: 50Hz, 100Hz, 200Hz, 500Hz, 1kHz, 2kHz, 5kHz, 10kHz, 15kHz
    - Helps understand which parts of the image correspond to which frequencies
 
-6. **Render**: Click "Render & Export WAV..."
+6. **Sound Preview**: Click "Preview" to audition audio in-app
+   - Playback uses current settings without exporting a file
+   - A **playback header** above the image shows current time / total (e.g. `Preview: 0:02.3 / 0:05.1`)
+   - A **playhead** (cyan vertical line) moves across the spectrogram image during playback
+   - Click "Stop Preview" to stop
+
+7. **Render**: Click "Render & Export WAV..."
    - Choose save location for WAV file
    - Progress dialog shows detailed rendering status:
      - Spectrogram building
@@ -156,7 +174,7 @@ Release\img2spec.exe
      - WAV file writing
    - Success dialog displays when complete
 
-7. **Listen**: Open the generated WAV file in any audio player or DAW
+8. **Listen**: Open the generated WAV file in any audio player or DAW
 
 ### Parameter Guide
 
@@ -172,6 +190,7 @@ Release\img2spec.exe
 - **Normalize Target**: Peak level in dBFS (recommended: -1 dBFS)
 - **Output Gain**: Additional volume adjustment
 - **Safety Limiter**: Prevents clipping with soft limiting
+- **Set target duration**: When checked, output length is resampled to the given "Duration (s)" (0.5–600 s)
 
 ## Implementation Status
 
@@ -203,13 +222,14 @@ Release\img2spec.exe
 - [x] Logarithmic frequency mapping
 - [x] Perceptual frequency scaling (20Hz - 20kHz configurable)
 - [x] Visual frequency guides on image preview
-- [x] Real-time audio duration estimation
+- [x] Real-time audio duration estimation; optional target duration (time-resampling)
 - [x] Enhanced progress dialog with detailed status
 
 ### STEP 5: 🚧 Performance & UX (Partially Complete)
 - [x] Progress reporting with detailed rendering stages
 - [x] Drag & drop support for image loading
 - [x] Duration calculation and display
+- [x] **Sound Preview**: in-app playback with playhead and position header (current / total)
 - [ ] Background rendering thread (renders on main thread currently)
 - [ ] Cancel operation during rendering
 - [ ] Memory optimization for very large images
@@ -262,9 +282,10 @@ img2spec/
 │   ├── Leveling.h/cpp              # DC removal, normalize, gain, limiter
 │   ├── WavWriter.h/cpp             # WAV file export
 ├── docs/
-│   └── images/                     # Screenshots and documentation images
-├── CMakeLists.txt                  # Build configuration
-└── README.md                       # This file
+│   ├── images/                    # Screenshots and documentation images
+│   └── ICON_PROMPT.md              # App icon design and ChatGPT prompt for release
+├── CMakeLists.txt                 # Build configuration
+└── README.md                      # This file
 ```
 
 ### Build Log Location

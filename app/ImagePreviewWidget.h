@@ -21,6 +21,7 @@ public:
 
     void setPixmap(const QPixmap& pixmap);
     void setFrequencyGuides(const std::vector<FrequencyGuide>& guides);
+    void setPlaybackPosition(double positionSec, double durationSec);
     void clearImage();
 
 protected:
@@ -33,6 +34,8 @@ private:
     QPixmap originalPixmap_;
     QPixmap scaledPixmap_;
     std::vector<FrequencyGuide> frequencyGuides_;
+    double playbackPositionSec_ = 0.0;
+    double playbackDurationSec_ = 0.0;
 };
 
 } // namespace img2spec
