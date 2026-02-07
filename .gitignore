@@ -89,3 +89,7 @@ imgui.ini
 *.aiff
 *.aif
 *.flac
+
+# ===== Internal / private (do not commit; repo is Public) =====
+internal/
+.cursor/
