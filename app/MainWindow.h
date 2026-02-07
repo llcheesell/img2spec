@@ -17,12 +17,12 @@
 
 #include "core/ImageLoader.h"
 #include "app/ImagePreviewWidget.h"
+#include <QAudioSink>
+#include <QBuffer>
+#include <QProgressDialog>
+#include <QTimer>
 
 namespace img2spec {
-
-class QAudioSink;
-class QBuffer;
-class QProgressDialog;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -55,9 +55,11 @@ private:
                        QProgressDialog* progressDialog);
     void startPreviewPlayback(const std::vector<float>& audio, int sampleRate, int channels);
     void stopPreviewPlayback();
+    void updatePreviewPosition();
 
     // UI Components
     ImagePreviewWidget* imagePreview_;
+    QLabel* playbackHeaderLabel_;
     QPushButton* openButton_;
     QPushButton* renderButton_;
     QPushButton* previewButton_;
@@ -79,6 +81,8 @@ private:
     QDoubleSpinBox* outputGainSpin_;
     QCheckBox* limiterCheck_;
     QCheckBox* stereoCheck_;
+    QCheckBox* useTargetDurationCheck_;
+    QDoubleSpinBox* targetDurationSpin_;
 
     QLabel* durationLabel_;
 
@@ -87,6 +91,8 @@ private:
     QString currentImagePath_;
     QAudioSink* previewSink_;
     QBuffer* previewBuffer_;
+    QTimer* previewPositionTimer_;
+    double previewDurationSec_ = 0.0;
 };
 
 } // namespace img2spec

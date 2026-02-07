@@ -28,11 +28,39 @@
 
 namespace img2spec {
 
+// Resample magnitude spectrogram along time axis to achieve target number of frames.
+static std::vector<std::vector<float>> resampleSpectrogramTime(
+    const std::vector<std::vector<float>>& spec,
+    int targetNumFrames)
+{
+    const int numFramesIn = static_cast<int>(spec.size());
+    if (numFramesIn == 0 || targetNumFrames <= 0) {
+        return {};
+    }
+    const int numBins = static_cast<int>(spec[0].size());
+    std::vector<std::vector<float>> out(targetNumFrames);
+    for (int t = 0; t < targetNumFrames; ++t) {
+        out[t].resize(numBins);
+        const double srcIdx = (targetNumFrames == 1)
+            ? 0.0
+            : (t * (numFramesIn - 1.0) / (targetNumFrames - 1.0));
+        const int i0 = std::min(static_cast<int>(srcIdx), numFramesIn - 1);
+        const int i1 = std::min(i0 + 1, numFramesIn - 1);
+        const float frac = static_cast<float>(srcIdx - i0);
+        for (int k = 0; k < numBins; ++k) {
+            out[t][k] = spec[i0][k] * (1.0f - frac) + spec[i1][k] * frac;
+        }
+    }
+    return out;
+}
+
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
     , imageLoader_(std::make_unique<ImageLoader>())
     , previewSink_(nullptr)
     , previewBuffer_(nullptr)
+    , previewPositionTimer_(nullptr)
+    , previewDurationSec_(0.0)
 {
     setupUI();
     setWindowTitle("img2spec - Image to Spectrogram Audio Generator");
@@ -59,9 +87,20 @@ void MainWindow::setupUI() {
     connect(openButton_, &QPushButton::clicked, this, &MainWindow::onOpenImage);
     imageLayout->addWidget(openButton_);
 
+    // Playback position header (current / total)
+    playbackHeaderLabel_ = new QLabel("Preview: — / —", this);
+    playbackHeaderLabel_->setStyleSheet(
+        "QLabel { font-weight: bold; color: #00c8ff; background-color: #1e1e1e; "
+        "padding: 6px 10px; border-radius: 4px; }");
+    playbackHeaderLabel_->setMinimumHeight(playbackHeaderLabel_->fontMetrics().height() + 12);
+    imageLayout->addWidget(playbackHeaderLabel_);
+
     // Image preview with frequency guides
     imagePreview_ = new ImagePreviewWidget(this);
     imageLayout->addWidget(imagePreview_, 1);
+
+    previewPositionTimer_ = new QTimer(this);
+    connect(previewPositionTimer_, &QTimer::timeout, this, &MainWindow::updatePreviewPosition);
 
     mainLayout->addWidget(imageGroup, 1);
 
@@ -200,6 +239,30 @@ void MainWindow::setupUI() {
     row7Layout->addWidget(stereoCheck_);
     row7Layout->addStretch();
     paramsLayout->addLayout(row7Layout);
+
+    // Row 8: Target duration (optional)
+    auto* row8Layout = new QHBoxLayout();
+    useTargetDurationCheck_ = new QCheckBox("Set target duration", this);
+    useTargetDurationCheck_->setChecked(false);
+    useTargetDurationCheck_->setToolTip("When checked, the image is time-resampled so the output length matches the specified duration.");
+    row8Layout->addWidget(useTargetDurationCheck_);
+
+    row8Layout->addWidget(new QLabel("Duration (s):", this));
+    targetDurationSpin_ = new QDoubleSpinBox(this);
+    targetDurationSpin_->setRange(0.5, 600.0);
+    targetDurationSpin_->setValue(5.0);
+    targetDurationSpin_->setDecimals(1);
+    targetDurationSpin_->setSingleStep(0.5);
+    targetDurationSpin_->setSuffix(" s");
+    targetDurationSpin_->setEnabled(false);
+    row8Layout->addWidget(targetDurationSpin_);
+    row8Layout->addStretch();
+    paramsLayout->addLayout(row8Layout);
+
+    connect(useTargetDurationCheck_, &QCheckBox::toggled, targetDurationSpin_, &QDoubleSpinBox::setEnabled);
+    connect(useTargetDurationCheck_, &QCheckBox::toggled, this, &MainWindow::updateDurationEstimate);
+    connect(targetDurationSpin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &MainWindow::updateDurationEstimate);
 
     mainLayout->addWidget(paramsGroup);
 
@@ -361,19 +424,22 @@ void MainWindow::updateDurationEstimate() {
     const int sampleRate = sampleRateCombo_->currentText().toInt();
     const int fftSize = fftSizeCombo_->currentText().toInt();
 
-    // Parse hop size (e.g., "NFFT/4" -> fftSize/4)
     QString hopText = hopSizeCombo_->currentText();
-    int hopSize = fftSize / 4; // default
+    int hopSize = fftSize / 4;
     if (hopText.contains("/2")) hopSize = fftSize / 2;
     else if (hopText.contains("/8")) hopSize = fftSize / 8;
 
-    // Calculate duration
-    // numFrames = imageWidth
-    // totalSamples = numFrames * hopSize (approximately, ignoring window overlap)
+    if (useTargetDurationCheck_ && useTargetDurationCheck_->isChecked()) {
+        const double targetSec = targetDurationSpin_->value();
+        durationLabel_->setText(QString("Target Duration: %1 s (image will be time-resampled)")
+            .arg(targetSec, 0, 'f', 1));
+        return;
+    }
+
+    // Duration from image: numFrames = imageWidth, totalSamples ≈ numFrames * hopSize
     const double totalSamples = imageWidth * hopSize;
     const double durationSeconds = totalSamples / sampleRate;
 
-    // Format duration as MM:SS or HH:MM:SS
     const int hours = static_cast<int>(durationSeconds / 3600);
     const int minutes = static_cast<int>((durationSeconds - hours * 3600) / 60);
     const double seconds = durationSeconds - hours * 3600 - minutes * 60;
@@ -390,10 +456,11 @@ void MainWindow::updateDurationEstimate() {
             .arg(seconds, 5, 'f', 2, QChar('0'));
     }
 
-    durationLabel_->setText(QString("Estimated Duration: %1 (Sample Rate: %2 Hz, Hop: %3)")
+    durationLabel_->setText(QString("Estimated Duration: %1 (from image: %2 cols × hop %3 ÷ %4 Hz)")
         .arg(durationText)
-        .arg(sampleRate)
-        .arg(hopSize));
+        .arg(imageWidth)
+        .arg(hopSize)
+        .arg(sampleRate));
 
     std::cout << "Duration estimate: " << durationText.toStdString()
               << " (" << durationSeconds << " seconds)" << std::endl;
@@ -482,6 +549,17 @@ bool MainWindow::generateAudio(std::vector<float>& finalAudio,
             imageLoader_->getHeight(),
             specParams
         );
+
+        if (useTargetDurationCheck_->isChecked()) {
+            const double targetSec = targetDurationSpin_->value();
+            const int targetNumFrames = static_cast<int>(std::round(targetSec * sampleRate / hopSize));
+            if (targetNumFrames > 0 && targetNumFrames != static_cast<int>(magnitudeSpec.size())) {
+                updateProgress(12, "Resampling to target duration...");
+                magnitudeSpec = resampleSpectrogramTime(magnitudeSpec, targetNumFrames);
+                std::cout << "  Time-resampled spectrogram to " << targetNumFrames
+                          << " frames (target " << targetSec << " s)" << std::endl;
+            }
+        }
 
         updateProgress(15, "Reconstructing phase with Griffin-Lim algorithm...");
 
@@ -662,9 +740,25 @@ void MainWindow::startPreviewPlayback(const std::vector<float>& audio, int sampl
 
     previewSink_->start(previewBuffer_);
     previewButton_->setText("Stop Preview");
+
+    previewDurationSec_ = static_cast<double>(audio.size()) / (channels * sampleRate);
+    auto formatTime = [](double sec) {
+        int m = static_cast<int>(sec) / 60;
+        double s = sec - m * 60;
+        return QString("%1:%2").arg(m).arg(s, 0, 'f', 1);
+    };
+    playbackHeaderLabel_->setText(QString("Preview: 0:00.0 / %1").arg(formatTime(previewDurationSec_)));
+    previewPositionTimer_->start(50);
 }
 
 void MainWindow::stopPreviewPlayback() {
+    previewPositionTimer_->stop();
+    previewDurationSec_ = 0.0;
+    playbackHeaderLabel_->setText("Preview: — / —");
+    if (imagePreview_) {
+        imagePreview_->setPlaybackPosition(0.0, 0.0);
+    }
+
     if (previewSink_) {
         previewSink_->stop();
         previewSink_->deleteLater();
@@ -679,6 +773,24 @@ void MainWindow::stopPreviewPlayback() {
 
     if (previewButton_) {
         previewButton_->setText("Preview");
+    }
+}
+
+void MainWindow::updatePreviewPosition() {
+    if (!previewSink_ || previewDurationSec_ <= 0.0) {
+        return;
+    }
+    const qint64 us = previewSink_->processedUSecs();
+    const double posSec = static_cast<double>(us) / 1e6;
+    auto formatTime = [](double sec) {
+        int m = static_cast<int>(sec) / 60;
+        double s = sec - m * 60;
+        return QString("%1:%2").arg(m).arg(s, 0, 'f', 1);
+    };
+    playbackHeaderLabel_->setText(
+        QString("Preview: %1 / %2").arg(formatTime(posSec)).arg(formatTime(previewDurationSec_)));
+    if (imagePreview_) {
+        imagePreview_->setPlaybackPosition(posSec, previewDurationSec_);
     }
 }
 

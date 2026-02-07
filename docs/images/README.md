@@ -7,11 +7,12 @@ This directory contains screenshots and documentation images for the img2spec ap
 ### 1. `screenshot-main.png` ✅
 **Description**: Main application window showing:
 - Image preview with frequency guide overlay (logarithmic mode)
-- All parameter controls visible
+- Playback header (Preview: current / total) and playhead on image when Sound Preview is used
+- All parameter controls visible (including optional "Set target duration")
 - Estimated duration display
 - Full GUI layout with render controls
 
-This screenshot demonstrates the complete application interface including the visual frequency guides feature.
+This screenshot demonstrates the complete application interface including the visual frequency guides and Sound Preview (playhead and position header).
 
 ---
 

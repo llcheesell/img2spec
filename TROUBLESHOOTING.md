@@ -208,12 +208,24 @@ cd ../../..
 cmake --build . --config Release
 ```
 
+### Issue: Preview Playback Has No Sound or Fails
+
+**Symptoms:**
+- Click "Preview" but no audio, or an error dialog
+- Playback header shows "Preview: 0:00.0 / X.X" but no sound
+
+**Possible causes and fixes:**
+1. **No audio output device**: Ensure the system has a default playback device (speakers/headphones). On macOS, check Sound settings.
+2. **Format not supported**: The app tries Float then Int16. If you see "Audio device does not support the current format", try a different sample rate (e.g. 44100 Hz) or disable "Stereo" for preview.
+3. **Empty or very quiet audio**: Same as exported WAV — check image brightness, Min dB, and gamma (see "Image Loads But Audio Is Silent/Corrupt" below).
+4. **Playhead not moving**: If the playhead (cyan line) does not move, playback may have ended or failed; check the playback header for time progress.
+
 ### Issue: Image Loads But Audio Is Silent/Corrupt
 
 **Symptoms:**
 - WAV file is generated
 - File size looks correct
-- No sound when playing
+- No sound when playing (exported file or in-app Preview)
 
 **Debug Steps:**
 

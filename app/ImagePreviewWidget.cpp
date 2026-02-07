@@ -26,10 +26,18 @@ void ImagePreviewWidget::setFrequencyGuides(const std::vector<FrequencyGuide>& g
     update();
 }
 
+void ImagePreviewWidget::setPlaybackPosition(double positionSec, double durationSec) {
+    playbackPositionSec_ = positionSec;
+    playbackDurationSec_ = durationSec;
+    update();
+}
+
 void ImagePreviewWidget::clearImage() {
     originalPixmap_ = QPixmap();
     scaledPixmap_ = QPixmap();
     frequencyGuides_.clear();
+    playbackPositionSec_ = 0.0;
+    playbackDurationSec_ = 0.0;
     update();
 }
 
@@ -114,6 +122,18 @@ void ImagePreviewWidget::paintEvent(QPaintEvent* event) {
             // Restore line pen
             painter.setPen(QPen(QColor(255, 200, 0, 200), 2, Qt::DashLine));
         }
+    }
+
+    // Playback position (playhead)
+    if (playbackDurationSec_ > 0 && !scaledPixmap_.isNull()) {
+        const int imageTop = y;
+        const int imageBottom = y + scaledPixmap_.height();
+        const int imageLeft = x;
+        const int imageWidth = scaledPixmap_.width();
+        const double t = std::min(1.0, std::max(0.0, playbackPositionSec_ / playbackDurationSec_));
+        const int headX = imageLeft + static_cast<int>(t * imageWidth);
+        painter.setPen(QPen(QColor(0, 200, 255), 3, Qt::SolidLine));
+        painter.drawLine(headX, imageTop, headX, imageBottom);
     }
 }
 
