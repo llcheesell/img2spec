@@ -192,48 +192,6 @@ Release\img2spec.exe
 - **Safety Limiter**: Prevents clipping with soft limiting
 - **Set target duration**: When checked, output length is resampled to the given "Duration (s)" (0.5–600 s)
 
-## Implementation Status
-
-### STEP 1: ✅ Image Loading & Preview
-- [x] PNG/JPG loading with stb_image
-- [x] Auto grayscale conversion (RGB → luminance)
-- [x] Alpha channel ignored
-- [x] Image preview in GUI
-- [x] Bilinear resampling
-
-### STEP 2: ✅ Audio Generation
-- [x] Spectrogram builder (linear frequency mapping)
-- [x] Griffin-Lim algorithm with phase reconstruction
-- [x] STFT/ISTFT with kissfft (Hann window, OLA)
-- [x] WAV export with all parameters
-- [x] Post-processing: DC removal, normalize, gain, limiter
-- [x] Full GUI integration with progress bar
-
-### STEP 3: ✅ Full Parameter Control
-- [x] All GUI parameters functional
-- [x] Sample rate: 44.1kHz / 48kHz / 96kHz
-- [x] Bit depth: 16-bit PCM / 24-bit PCM / 32-bit Float
-- [x] FFT size, hop size, frequency scale
-- [x] MinDB, gamma, Griffin-Lim iterations
-- [x] Normalize target, output gain, safety limiter
-- [x] Mono/Stereo output option
-
-### STEP 4: ✅ Advanced Features
-- [x] Logarithmic frequency mapping
-- [x] Perceptual frequency scaling (20Hz - 20kHz configurable)
-- [x] Visual frequency guides on image preview
-- [x] Real-time audio duration estimation; optional target duration (time-resampling)
-- [x] Enhanced progress dialog with detailed status
-
-### STEP 5: 🚧 Performance & UX (Partially Complete)
-- [x] Progress reporting with detailed rendering stages
-- [x] Drag & drop support for image loading
-- [x] Duration calculation and display
-- [x] **Sound Preview**: in-app playback with playhead and position header (current / total)
-- [ ] Background rendering thread (renders on main thread currently)
-- [ ] Cancel operation during rendering
-- [ ] Memory optimization for very large images
-
 ## Known Limitations
 
 - Maximum recommended image size: 4096x4096 pixels
@@ -298,4 +256,4 @@ Console output includes detailed logging for debugging:
 
 ## Credits
 
-Created with Claude Code - AI-powered development assistant
+llcheesell, Claude Code, and Cursor — collaborative development.

@@ -107,13 +107,6 @@ Release\img2spec.exe
 - **Griffin-Lim Iterations**: 多いほど位相推定が安定（64 前後で十分なことが多い）
 - **Set target duration**: チェック時、指定秒数に合わせて時間軸リサンプル
 
-## 実装状況
-
-- ✅ 画像読み込み・プレビュー・ドラッグ＆ドロップ
-- ✅ スペクトログラム構築（リニア/対数）、Griffin-Lim、WAV エクスポート
-- ✅ 全パラメータ・目標時間・サウンドプレビュー（再生ヘッダ・プレイヘッド）
-- 🚧 バックグラウンドレンダリング・キャンセル・大画像最適化は未実装
-
 ## 制限事項
 
 - 推奨画像サイズの目安: 4096×4096 以下
@@ -147,4 +140,4 @@ img2spec/
 
 ## Credits
 
-Created with Claude Code - AI-powered development assistant
+llcheesell と Claude Code、Cursor による共同開発。
