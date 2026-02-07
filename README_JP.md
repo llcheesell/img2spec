@@ -40,10 +40,10 @@
 
 ### ソースの取得
 
-[Releases](https://github.com/YOUR_USERNAME/img2spec/releases) から最新のソースを取得するか、リポジトリをクローンしてください。
+[Releases](https://github.com/llcheesell/img2spec/releases) から最新のソースを取得するか、リポジトリをクローンしてください。
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/img2spec.git
+git clone https://github.com/llcheesell/img2spec.git
 cd img2spec
 ```
 

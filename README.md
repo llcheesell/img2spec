@@ -40,14 +40,14 @@ Convert images (PNG/JPG) into audio by interpreting them as spectrograms. Uses t
 
 ### Download Source Code
 
-Download the latest release from the [Releases page](https://github.com/YOUR_USERNAME/img2spec/releases):
+Download the latest release from the [Releases page](https://github.com/llcheesell/img2spec/releases):
 - Click on "Source code (zip)" or "Source code (tar.gz)"
 - Extract the archive
 - Follow the build instructions below
 
 Alternatively, clone the repository:
 ```bash
-git clone https://github.com/YOUR_USERNAME/img2spec.git
+git clone https://github.com/llcheesell/img2spec.git
 cd img2spec
 ```
 
